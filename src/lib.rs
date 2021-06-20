@@ -451,6 +451,13 @@ mod test {
         assert_eq!(breakdown.nanoseconds(), 0);
     }
 
+    #[test]
+    fn max_breakdown() {
+        // Duration::MAX is platform dependent, so this test
+        // just makes sure that creating a breakdown doesn't panic
+        DurationBreakdown::from(Duration::MAX);
+    }
+
     fn breakdown_from_secs(secs: u64) -> DurationBreakdown {
         DurationBreakdown::from(Duration::from_secs(secs))
     }
