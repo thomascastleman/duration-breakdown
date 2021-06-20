@@ -1,6 +1,7 @@
 
 [x] construction of arbitrary DurationBreakdown
 [x] more options for formatting as string 
-[] add examples in docs
+[x] add examples in docs
 [] quickcheck tests
-[] support for converting from Duration -> DurationBreakdown and back
+[x] support for converting from Duration -> DurationBreakdown and back
+[x] normalize breakdown
