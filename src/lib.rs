@@ -328,9 +328,9 @@ impl From<DurationBreakdown> for Duration {
 
 #[cfg(test)]
 mod test {
-    use std::time::Duration;
-
     use super::*;
+    use quickcheck::quickcheck;
+    use std::time::Duration;
 
     #[test]
     fn zero_duration_is_all_zeros() {
@@ -449,5 +449,45 @@ mod test {
         assert_eq!(breakdown.minutes(), 51);
         assert_eq!(breakdown.seconds(), 10);
         assert_eq!(breakdown.nanoseconds(), 0);
+    }
+
+    fn breakdown_from_secs(secs: u64) -> DurationBreakdown {
+        DurationBreakdown::from(Duration::from_secs(secs))
+    }
+
+    quickcheck! {
+        // Weeks is total seconds divided by how many seconds
+        // are in a week
+        fn weeks_is_sec_over_sec_per_week(secs: u64) -> bool {
+            let b = breakdown_from_secs(secs);
+            b.weeks() == secs / SEC_PER_WEEK
+        }
+
+        // Days is whatever is left over after taking out weeks,
+        // divided by number of seconds in a day
+        fn days_is_leftover_sec_per_day(secs: u64) -> bool {
+            let b = breakdown_from_secs(secs);
+            b.days() == (secs % SEC_PER_WEEK) / SEC_PER_DAY
+        }
+
+        // Hours is whatever is left over after taking out days,
+        // divided by number of seconds in an hour
+        fn hours_is_leftover_sec_per_hour(secs: u64) -> bool {
+            let b = breakdown_from_secs(secs);
+            b.hours() == (secs % SEC_PER_DAY) / SEC_PER_HOUR
+        }
+
+        // Minutes is whatever is left over after taking out hours,
+        // divided by number of seconds in a minute
+        fn minutes_is_leftover_sec_per_min(secs: u64) -> bool {
+            let b = breakdown_from_secs(secs);
+            b.minutes() == (secs % SEC_PER_HOUR) / SEC_PER_MIN
+        }
+
+        // Seconds is whatever is left over after taking out minutes.
+        fn seconds_is_leftover_sec(secs: u64) -> bool {
+            let b = breakdown_from_secs(secs);
+            b.seconds() == (secs % SEC_PER_MIN)
+        }
     }
 }
