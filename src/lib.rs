@@ -36,7 +36,7 @@ const SEC_PER_WEEK: u64 = SEC_PER_DAY * 7;
 /// A `DurationBreakdown` represents a duration of time that has been
 /// broken up into several units (i.e. weeks, days, etc) in such a way
 /// that the sum of each unit comprises the whole duration of time.
-#[derive(PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone, Copy)]
 pub struct DurationBreakdown {
     weeks: u64,
     days: u64,

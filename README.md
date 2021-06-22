@@ -1,4 +1,7 @@
 # duration-breakdown
+[![Crates.io](https://img.shields.io/crates/v/duration-breakdown.svg)](https://crates.io/crates/duration-breakdown)
+[![Documentation](https://docs.rs/duration-breakdown/badge.svg)](https://docs.rs/duration-breakdown/)
+
 Breakdowns of durations of time into their constituent parts of various units.
 
 ## Example
