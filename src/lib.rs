@@ -13,6 +13,7 @@
 //!     breakdown.to_string(),
 //!     "20 weeks, 2 days, 21 hours, 21 minutes, 18 seconds, and 1234 nanoseconds");
 //! ```
+
 use std::{
     convert::{From, TryFrom},
     fmt::{self, Display},
@@ -495,6 +496,13 @@ mod test {
         fn seconds_is_leftover_sec(secs: u64) -> bool {
             let b = breakdown_from_secs(secs);
             b.seconds() == (secs % SEC_PER_MIN)
+        }
+
+        // Converting from a duration to a breakdown and back should
+        // yield the same duration.
+        fn conversions_work(secs: u64) -> bool {
+            let d = Duration::from_secs(secs);
+            Duration::from(DurationBreakdown::from(d)) == d
         }
     }
 }
