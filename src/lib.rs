@@ -49,6 +49,9 @@ pub struct DurationBreakdown {
 /// The granularity of a breakdown. A `DurationBreakdown` with a `Minutes` precision
 /// would have possibly non-zero values for its weeks, days, hours, and minutes,
 /// but 0 for its seconds and nanoseconds.
+///
+/// See the `with_precision` method on [`DurationBreakdown`] for more on how
+/// `Precision` is used.
 #[derive(Debug, Eq, PartialEq, PartialOrd, Clone, Copy)]
 pub enum Precision {
     Weeks = 0,
