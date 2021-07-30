@@ -21,17 +21,17 @@ use std::{
 };
 
 // Constants for converting between units of time.
-const NS_PER_SEC: u64 = 1_000_000_000;
-const SEC_PER_MIN: u64 = 60;
-const MIN_PER_HOUR: u64 = 60;
-const HOUR_PER_DAY: u64 = 24;
-const DAY_PER_WEEK: u64 = 7;
+const NANOSECONDS_PER_SECOND: u64 = 1_000_000_000;
+const SECONDS_PER_MINUTE: u64 = 60;
+const MINUTES_PER_HOUR: u64 = 60;
+const HOURS_PER_DAY: u64 = 24;
+const DAYS_PER_WEEK: u64 = 7;
 
 // We access a `std::time::Duration`'s total duration in seconds,
 // so these facilitate conversion into a breakdown.
-const SEC_PER_HOUR: u64 = SEC_PER_MIN * 60;
-const SEC_PER_DAY: u64 = SEC_PER_HOUR * 24;
-const SEC_PER_WEEK: u64 = SEC_PER_DAY * 7;
+const SECONDS_PER_HOUR: u64 = SECONDS_PER_MINUTE * 60;
+const SECONDS_PER_DAY: u64 = SECONDS_PER_HOUR * 24;
+const SECONDS_PER_WEEK: u64 = SECONDS_PER_DAY * 7;
 
 /// A `DurationBreakdown` represents a duration of time that has been
 /// broken up into several units (i.e. weeks, days, etc) in such a way
@@ -44,6 +44,19 @@ pub struct DurationBreakdown {
     minutes: u64,
     seconds: u64,
     nanoseconds: u64,
+}
+
+/// The granularity of a breakdown. A `DurationBreakdown` with a `Minutes` precision
+/// would have possibly non-zero values for its weeks, days, hours, and minutes,
+/// but 0 for its seconds and nanoseconds.
+#[derive(Debug, Eq, PartialEq, PartialOrd, Clone, Copy)]
+pub enum Precision {
+    Weeks = 0,
+    Days = 1,
+    Hours = 2,
+    Minutes = 3,
+    Seconds = 4,
+    Nanoseconds = 5,
 }
 
 impl DurationBreakdown {
@@ -85,6 +98,47 @@ impl DurationBreakdown {
         }
     }
 
+    /// Creates a copy of the given `DurationBreakdown` with a given precision.
+    /// Specifying a precision allows you to discard the pieces of the breakdown
+    /// which are below a certain granularity.
+    ///
+    /// All units below the given precision are set to 0 in the breakdown (not
+    /// rounded).
+    ///
+    /// # Examples
+    /// ```
+    /// # use duration_breakdown::DurationBreakdown;
+    /// # use duration_breakdown::Precision;
+    /// let breakdown = DurationBreakdown::from_parts(14, 2, 16, 25, 55, 400);
+    /// assert_eq!(
+    ///     breakdown.with_precision(Precision::Hours),
+    ///     DurationBreakdown::from_parts(14, 2, 16, 0, 0, 0)
+    /// );
+    /// ```
+    pub fn with_precision(&self, precision: Precision) -> Self {
+        // Make a copy of self
+        let mut breakdown = *self;
+
+        macro_rules! zero_if_under_threshold {
+            ($field:ident, $precision:expr) => {
+                // If the precision falls below the given level, zero
+                // the corresponding part of the breakdown.
+                if precision < $precision {
+                    breakdown.$field = 0;
+                }
+            };
+        }
+
+        zero_if_under_threshold!(nanoseconds, Precision::Nanoseconds);
+        zero_if_under_threshold!(seconds, Precision::Seconds);
+        zero_if_under_threshold!(minutes, Precision::Minutes);
+        zero_if_under_threshold!(hours, Precision::Hours);
+        zero_if_under_threshold!(days, Precision::Days);
+        zero_if_under_threshold!(weeks, Precision::Weeks);
+
+        breakdown
+    }
+
     /// Converts a `DurationBreakdown` into a standard form in which the value
     /// of a given time component (week, day, etc) is no greater than the value
     /// of a single unit of the time component one level up. For instance,
@@ -102,27 +156,23 @@ impl DurationBreakdown {
     ///     "1 week, 2 days, 1 hour, 51 minutes, 10 seconds, and 0 nanoseconds");
     /// ```
     pub fn normalize(&mut self) {
-        // propagate "overflow" upwards from the smallest unit (ns)
-        if self.nanoseconds >= NS_PER_SEC {
-            self.seconds += self.nanoseconds / NS_PER_SEC;
-            self.nanoseconds %= NS_PER_SEC;
+        // Propagates overflow from one unit (sub_unit) into the next (super_unit)
+        macro_rules! propagate_overflow {
+            ($sub_unit:ident, $super_unit:ident, $sub_per_super:ident) => {
+                // If the sub-unit exceeds the number of sub-units per super, spill
+                // the sub-unit into the super and decrease the sub-unit accordingly
+                if self.$sub_unit >= $sub_per_super {
+                    self.$super_unit += self.$sub_unit / $sub_per_super;
+                    self.$sub_unit %= $sub_per_super;
+                }
+            };
         }
-        if self.seconds >= SEC_PER_MIN {
-            self.minutes += self.seconds / SEC_PER_MIN;
-            self.seconds %= SEC_PER_MIN;
-        }
-        if self.minutes >= MIN_PER_HOUR {
-            self.hours += self.minutes / MIN_PER_HOUR;
-            self.minutes %= MIN_PER_HOUR;
-        }
-        if self.hours >= HOUR_PER_DAY {
-            self.days += self.hours / HOUR_PER_DAY;
-            self.hours %= HOUR_PER_DAY;
-        }
-        if self.days >= DAY_PER_WEEK {
-            self.weeks += self.days / DAY_PER_WEEK;
-            self.days %= DAY_PER_WEEK;
-        }
+
+        propagate_overflow!(nanoseconds, seconds, NANOSECONDS_PER_SECOND);
+        propagate_overflow!(seconds, minutes, SECONDS_PER_MINUTE);
+        propagate_overflow!(minutes, hours, MINUTES_PER_HOUR);
+        propagate_overflow!(hours, days, HOURS_PER_DAY);
+        propagate_overflow!(days, weeks, DAYS_PER_WEEK);
     }
 
     /// Gets the number of weeks in the breakdown.
@@ -282,17 +332,17 @@ impl From<Duration> for DurationBreakdown {
     fn from(duration: Duration) -> Self {
         let mut seconds_left = duration.as_secs();
 
-        let weeks = seconds_left / SEC_PER_WEEK;
-        seconds_left %= SEC_PER_WEEK;
+        let weeks = seconds_left / SECONDS_PER_WEEK;
+        seconds_left %= SECONDS_PER_WEEK;
 
-        let days = seconds_left / SEC_PER_DAY;
-        seconds_left %= SEC_PER_DAY;
+        let days = seconds_left / SECONDS_PER_DAY;
+        seconds_left %= SECONDS_PER_DAY;
 
-        let hours = seconds_left / SEC_PER_HOUR;
-        seconds_left %= SEC_PER_HOUR;
+        let hours = seconds_left / SECONDS_PER_HOUR;
+        seconds_left %= SECONDS_PER_HOUR;
 
-        let minutes = seconds_left / SEC_PER_MIN;
-        seconds_left %= SEC_PER_MIN;
+        let minutes = seconds_left / SECONDS_PER_MINUTE;
+        seconds_left %= SECONDS_PER_MINUTE;
 
         let seconds = seconds_left;
         let nanoseconds = u64::from(duration.subsec_nanos());
@@ -316,10 +366,10 @@ impl From<DurationBreakdown> for Duration {
     /// greater than `u32::MAX`.
     fn from(db: DurationBreakdown) -> Self {
         Duration::new(
-            (db.weeks * SEC_PER_WEEK)
-                + (db.days * SEC_PER_DAY)
-                + (db.hours * SEC_PER_HOUR)
-                + (db.minutes * SEC_PER_MIN)
+            (db.weeks * SECONDS_PER_WEEK)
+                + (db.days * SECONDS_PER_DAY)
+                + (db.hours * SECONDS_PER_HOUR)
+                + (db.minutes * SECONDS_PER_MINUTE)
                 + (db.seconds),
             u32::try_from(db.nanoseconds)
                 .expect("DurationBreakdown's nanoseconds value greater than max u32"),
@@ -459,6 +509,21 @@ mod test {
         DurationBreakdown::from(Duration::MAX);
     }
 
+    #[test]
+    fn precision() {
+        let breakdown = DurationBreakdown::from_parts(40, 2, 18, 12, 22, 7200);
+        assert_eq!(
+            breakdown.with_precision(Precision::Weeks),
+            DurationBreakdown::from_parts(40, 0, 0, 0, 0, 0)
+        );
+        assert_eq!(
+            breakdown.with_precision(Precision::Minutes),
+            DurationBreakdown::from_parts(40, 2, 18, 12, 0, 0)
+        );
+        // nanosecond precision just copies the original
+        assert_eq!(breakdown.with_precision(Precision::Nanoseconds), breakdown);
+    }
+
     fn breakdown_from_secs(secs: u64) -> DurationBreakdown {
         DurationBreakdown::from(Duration::from_secs(secs))
     }
@@ -468,34 +533,34 @@ mod test {
         // are in a week
         fn weeks_is_sec_over_sec_per_week(secs: u64) -> bool {
             let b = breakdown_from_secs(secs);
-            b.weeks() == secs / SEC_PER_WEEK
+            b.weeks() == secs / SECONDS_PER_WEEK
         }
 
         // Days is whatever is left over after taking out weeks,
         // divided by number of seconds in a day
         fn days_is_leftover_sec_per_day(secs: u64) -> bool {
             let b = breakdown_from_secs(secs);
-            b.days() == (secs % SEC_PER_WEEK) / SEC_PER_DAY
+            b.days() == (secs % SECONDS_PER_WEEK) / SECONDS_PER_DAY
         }
 
         // Hours is whatever is left over after taking out days,
         // divided by number of seconds in an hour
         fn hours_is_leftover_sec_per_hour(secs: u64) -> bool {
             let b = breakdown_from_secs(secs);
-            b.hours() == (secs % SEC_PER_DAY) / SEC_PER_HOUR
+            b.hours() == (secs % SECONDS_PER_DAY) / SECONDS_PER_HOUR
         }
 
         // Minutes is whatever is left over after taking out hours,
         // divided by number of seconds in a minute
-        fn minutes_is_leftover_sec_per_min(secs: u64) -> bool {
+        fn minutes_is_leftover_seconds_per_minute(secs: u64) -> bool {
             let b = breakdown_from_secs(secs);
-            b.minutes() == (secs % SEC_PER_HOUR) / SEC_PER_MIN
+            b.minutes() == (secs % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE
         }
 
         // Seconds is whatever is left over after taking out minutes.
         fn seconds_is_leftover_sec(secs: u64) -> bool {
             let b = breakdown_from_secs(secs);
-            b.seconds() == (secs % SEC_PER_MIN)
+            b.seconds() == (secs % SECONDS_PER_MINUTE)
         }
 
         // Converting from a duration to a breakdown and back should

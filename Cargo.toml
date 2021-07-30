@@ -1,6 +1,6 @@
 [package]
 name = "duration-breakdown"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Thomas Castleman <thomascastleman0@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -10,8 +10,6 @@ description = "Breakdowns of time durations into their constituent parts"
 repository = "https://github.com/thomascastleman/duration-breakdown.git"
 
 keywords = ["time","duration"]
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 
